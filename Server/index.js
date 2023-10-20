@@ -19,6 +19,8 @@ const io = new Server(expressServer, {
 
 io.on('connection', socket => {
     console.log(`User: ${socket.id} connected`);
+    socket.emit('message',"Welcome to Chat App!");
+    socket.broadcast.emit('message',`User: ${socket.id.substring(0, 5)} connected`)
 
     socket.on('message', data => {
         console.log(data);
