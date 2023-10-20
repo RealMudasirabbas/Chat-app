@@ -16,6 +16,7 @@ function sendMessage(e) {
 document.querySelector('form').addEventListener('submit', sendMessage);
 
 socket.on('message', (data) => {
+    activity.textContent = ""
     const li = document.createElement('li');
     li.textContent = data;
     document.querySelector('ul').appendChild(li);
@@ -24,3 +25,13 @@ socket.on('message', (data) => {
 msgInput.addEventListener('keypress', () => {
     socket.emit('keypress',socket.id.substring(0,5))
 })
+
+let activityTimer;
+socket.on('activity', (name) => {
+activity.textContent = `${name} is typing...`
+})
+
+clearTimeout(activityTimer)
+activityTimer = setTimeout(() => {
+  activity.textContent = ""
+},3000)
