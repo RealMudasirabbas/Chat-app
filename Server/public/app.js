@@ -22,5 +22,5 @@ socket.on('message', (data) => {
 });
 
 msgInput.addEventListener('keypress', () => {
-    socket.emit('keypress',socket.id.substring(0,5));
-}
+    socket.emit('keypress',socket.id.substring(0,5))
+})
