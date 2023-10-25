@@ -6,11 +6,18 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const PORT = process.env.PORT || 3500
+const ADMIN = "Admin"
 const app = express()
 app.use(express.static(path.join(__dirname,"public")))
 const expressServer = app.listen(PORT,() => {
     console.log(`listening on ${PORT}`)
 })
+
+const userState = {
+    users: [],
+    setUsers: function(newUsersArray) {
+        this.users = newUsersArray
+}}
 const io = new Server(expressServer, {
     cors: {
         origin: process.env.NODE_ENV === "production" ? false : ["http://localhost:5500", "http://127.0.0.1:5500"]
@@ -19,12 +26,65 @@ const io = new Server(expressServer, {
 
 io.on('connection', socket => {
     console.log(`User: ${socket.id} connected`);
-    socket.emit('message', "Welcome to Chat App!");
+    socket.emit('message',buildMsg( ADMIN,"Welcome to Chat App!"));
+
+    socket.on('enterRoom', ({name , room}) => {
+        const prevRoom = getUser(socket.id)?.room
+
+        if(prevRoom) {
+            socket.leave(prevRoom)
+            io.to(prevRoom).emit('message',buildMsg(ADMIN, `${name} has left the room`))
+    }
+
+        const user = activateUser(socket.id,name,room)
+         if(prevRoom) {
+            io.to(prevRoom).emit('userList', {
+                users: getUsersInRoom(prevRoom)
+            })
+         }
+
+         socket.join(user.room)
+
+         socket.emit('message',buildMsg(ADMIN, `You have joined the ${user.room} chat room`))
+
+         socket.broadcast.to(user.room).emit('message',buildMsg(ADMIN, `${user.name} has joined the room`))
+
+         io.to(user.room).emit('userList', {
+            users: getUsersInRoom(user.room)
+         })
+
+         io.emit('roomList', {
+            rooms: getAllActiveRooms()
+         })
+    })
+
+    socket.on('disconnect', () => {
+        const user = getUser(socket.id)
+        userLeaveApp(socket.id)
+        
+        if(user) {
+            io.to(user.room).emit('message',buildMsg(ADMIN, `${user.name} has left the room`))
+            
+            io.to(user.room).emit('userList', {
+                users: getUsersInRoom(user.room)
+            })
+
+            io.emit('roomList', {
+                rooms: getAllActiveRooms()
+            }) 
+        }
+
+        console.log(`User: ${socket.id} disconnected`);
+    })
+
     socket.broadcast.emit('message', `User: ${socket.id.substring(0, 5)} connected`);
 
-    socket.on('message', data => {
-        console.log(data);
-        io.emit('message', `${socket.id.substring(0, 5)}: ${data}`);
+    socket.on('message', ({name,text}) => {
+        const room = getUser(socket.id)?.room
+        if(room) {
+            io.to(room).emit('message',buildMsg(name, text))
+        }
+        
     });
 
     socket.on('disconnect', () => {
@@ -33,9 +93,42 @@ io.on('connection', socket => {
     });
 
     socket.on('activity', (name) => {
-        socket.broadcast.emit('activity', name);
-    });
+        const room = getUser(socket.id)?.room
+        if(room) {
+            socket.broadcast.to(room).emit('activity', name)
+        }
 });
 
+function buildMsg (name, text) {
+    return {
+        name,
+        text,
+        time: new Intl.DateTimeFormat('default',{
+            hours:'numeric',
+            minutes:'numeric',
+            seconds:'numeric'
+        }).format(new Date())}
+    }
 
+function activateUser(name, id , room) {
+    const user = {name, id, room}
+    UsersState.setUsers([...UsersState.users.filter(user => user.id !== id), user])
+    return user
+}
 
+function userLeaveApp(id) {
+    UserState.setUsers(UsersState.users.filter(user => user.id !== id))
+}
+
+function getUser(id) {
+    return UsersState.users.find(user => user.id === id)
+}
+
+function getUserInRoom(room) {
+    return UsersState.users.filter(user => user.room === room)
+}
+
+function getAllActiveRooms() {
+    Array.from(new Set(UsersState.users.map(user =>user.room)))
+}
+})
